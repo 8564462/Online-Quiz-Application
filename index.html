@@ -1,0 +1,468 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Online Quiz App</title>
+  <style>
+    :root{
+      --bg:#0f1724; --card:#0b1220; --muted:#9aa4b2; --accent:#6ee7b7; --danger:#ff7b7b; --success:#7ef09a;
+      --glass: rgba(255,255,255,0.03);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;background:linear-gradient(180deg,#071124 0%, #0b1a2b 100%);color:#e6eef6;display:flex;align-items:center;justify-content:center;padding:24px}
+    .app{width:100%;max-width:980px}
+    header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+    header h1{font-size:20px;margin:0}
+    .meta{color:var(--muted);font-size:13px}
+
+    .panel{display:grid;grid-template-columns:320px 1fr;gap:18px}
+
+    /* left settings card */
+    .card{background:var(--card);padding:18px;border-radius:12px;box-shadow:0 6px 18px rgba(2,6,23,0.6)}
+    label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+    .row{margin-bottom:12px}
+    input[type=number], select{width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:var(--glass);color:inherit}
+    .small{font-size:13px;color:var(--muted)}
+    .controls{display:flex;gap:8px}
+    button{background:linear-gradient(180deg, rgba(255,255,255,0.03), rgba(0,0,0,0.03));border:1px solid rgba(255,255,255,0.05);padding:10px 12px;border-radius:10px;color:inherit;cursor:pointer}
+    button.primary{background:linear-gradient(180deg,var(--accent),#3dd9a2);color:#06211a;font-weight:600;border:none}
+
+    /* quiz area */
+    .quiz-area{display:flex;flex-direction:column;gap:12px}
+    .topbar{display:flex;align-items:center;justify-content:space-between}
+    .progress{height:8px;background:rgba(255,255,255,0.06);border-radius:8px;overflow:hidden;flex:1;margin-left:12px}
+    .progress > i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),#59c9a0);width:0%}
+    .card.question{padding:22px;min-height:220px;display:flex;flex-direction:column;justify-content:space-between}
+    .qtext{font-size:18px;line-height:1.4}
+    .options{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+    .option{padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.04);background:rgba(255,255,255,0.02);cursor:pointer;user-select:none}
+    .option[aria-disabled="true"]{opacity:0.7;cursor:not-allowed}
+    .option.correct{outline:3px solid rgba(126,240,154,0.14);background:linear-gradient(180deg, rgba(126,240,154,0.06), rgba(126,240,154,0.02));}
+    .option.wrong{outline:3px solid rgba(255,123,123,0.12);background:linear-gradient(180deg, rgba(255,123,123,0.04), rgba(255,123,123,0.02));}
+    .timer{font-weight:700}
+    .feedback{font-size:14px;color:var(--muted);margin-top:8px}
+    .next-row{display:flex;align-items:center;justify-content:space-between;margin-top:12px}
+
+    .end{display:none;flex-direction:column;gap:12px;align-items:center}
+    .end.show{display:flex}
+    .scorebig{font-size:36px;font-weight:700}
+    .small-muted{color:var(--muted)}
+
+    footer{margin-top:12px;color:var(--muted);font-size:13px;text-align:center}
+
+    @media (max-width:800px){
+      .panel{grid-template-columns:1fr;}
+      .options{grid-template-columns:1fr}
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div>
+        <h1>Online Quiz App</h1>
+        <div class="meta">Multiple-choice quiz with timer, instant feedback & scoring</div>
+      </div>
+      <div class="meta" id="highscore">High score: —</div>
+    </header>
+
+    <div class="panel">
+      <!-- settings/controls -->
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <strong>Settings</strong>
+          <small class="small-muted">v1.0</small>
+        </div>
+
+        <div class="row">
+          <label>Number of questions</label>
+          <input id="numQuestions" type="number" min="1" max="50" value="10">
+        </div>
+
+        <div class="row">
+          <label>Difficulty (Open Trivia DB)</label>
+          <select id="difficulty">
+            <option value="">Any</option>
+            <option value="easy">Easy</option>
+            <option value="medium">Medium</option>
+            <option value="hard">Hard</option>
+          </select>
+        </div>
+
+        <div class="row">
+          <label><input id="useApi" type="checkbox" checked> Use Open Trivia DB (internet required)</label>
+          <div class="small">If API fails or unchecked, the app uses local fallback questions.</div>
+        </div>
+
+        <div class="row">
+          <label>Time per question (seconds)</label>
+          <input id="timePerQ" type="number" min="5" max="120" value="20">
+        </div>
+
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button id="startBtn" class="primary">Start Quiz</button>
+          <button id="resetHigh">Reset High Score</button>
+        </div>
+
+        <hr style="margin:12px 0;border:none;border-top:1px solid rgba(255,255,255,0.03)">
+        <div class="small muted">Keyboard shortcuts: 1–4 to select option, Enter/Space for next</div>
+      </div>
+
+      <!-- quiz area -->
+      <div class="quiz-area">
+        <div class="topbar card" style="display:flex;align-items:center;gap:12px">
+          <div><strong id="qIndex">Question 0 / 0</strong></div>
+          <div class="progress" aria-hidden="true"><i id="progressBar"></i></div>
+          <div style="display:flex;gap:10px;align-items:center">
+            <div class="timer" id="timer">--</div>
+            <div><strong id="score">Score: 0</strong></div>
+          </div>
+        </div>
+
+        <div class="card question" id="questionCard">
+          <div>
+            <div class="qtext" id="questionText">Press Start to load questions.</div>
+            <div class="options" id="options"></div>
+            <div class="feedback" id="feedback"></div>
+          </div>
+
+          <div class="next-row">
+            <div class="small-muted" id="debugInfo"></div>
+            <div style="display:flex;gap:8px">
+              <button id="prevBtn">Prev</button>
+              <button id="nextBtn">Next</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card end" id="endScreen">
+          <div class="scorebig" id="finalScore">0 / 0</div>
+          <div class="small-muted" id="finalMsg">Nice work — review your answers below or retake the quiz.</div>
+          <div style="display:flex;gap:8px">
+            <button id="retryBtn" class="primary">Play Again</button>
+            <button id="reviewBtn">Review Answers</button>
+          </div>
+          <div id="reviewArea" style="width:100%;margin-top:12px"></div>
+        </div>
+
+        <footer>Made with ❤️ — HTML • CSS • JavaScript — Open Trivia DB </footer>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /*******************************************************************
+     * Simple Online Quiz App - Single-file
+     * Features:
+     * - Optional Open Trivia DB integration
+     * - Per-question timer with progress bar
+     * - Instant feedback (correct/wrong) and scoring
+     * - Keyboard shortcuts (1-4, Enter)
+     * - Local fallback questions if API fails
+     * - High score saved to localStorage
+     *******************************************************************/
+
+    // ---------- Configuration (change if you like) ----------
+    const OPEN_TRIVIA_API = 'https://opentdb.com/api.php';
+
+    // ---------- state ----------
+    let questions = []; // loaded quiz questions in normalized format
+    let current = 0;
+    let score = 0;
+    let timerInterval = null;
+    let timeLeft = 0;
+    let timePerQuestion = 20;
+
+    // ---------- DOM refs ----------
+    const startBtn = document.getElementById('startBtn');
+    const numQuestionsEl = document.getElementById('numQuestions');
+    const difficultyEl = document.getElementById('difficulty');
+    const useApiEl = document.getElementById('useApi');
+    const timePerQEl = document.getElementById('timePerQ');
+
+    const qIndexEl = document.getElementById('qIndex');
+    const questionTextEl = document.getElementById('questionText');
+    const optionsEl = document.getElementById('options');
+    const feedbackEl = document.getElementById('feedback');
+    const timerEl = document.getElementById('timer');
+    const scoreEl = document.getElementById('score');
+    const progressBar = document.getElementById('progressBar');
+    const endScreen = document.getElementById('endScreen');
+    const questionCard = document.getElementById('questionCard');
+    const finalScoreEl = document.getElementById('finalScore');
+    const retryBtn = document.getElementById('retryBtn');
+    const reviewBtn = document.getElementById('reviewBtn');
+    const reviewArea = document.getElementById('reviewArea');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const highscoreEl = document.getElementById('highscore');
+    const resetHighBtn = document.getElementById('resetHigh');
+
+    // ---------- fallback local questions (used when API disabled/fails) ----------
+    const FALLBACK_QUESTIONS = [
+      {question: 'Which language runs in a web browser?', correct: 'JavaScript', incorrect: ['Python','C++','Java']},
+      {question: "What does CSS stand for?", correct: 'Cascading Style Sheets', incorrect: ['Computer Style Sheets','Creative Styling Syntax','Colorful Style Sheets']},
+      {question: 'Which HTML tag is used to define an unordered list?', correct: '<ul>', incorrect: ['<ol>','<li>','<list>']},
+      {question: 'Which company developed the React library?', correct: 'Facebook', incorrect: ['Google','Microsoft','Twitter']},
+      {question: 'Which symbol is used for comments in JavaScript?', correct: '//', incorrect: ['/* */','<!-- -->','##']},
+      {question: 'What is the output of 2 + "2" in JavaScript?', correct: '22', incorrect: ['4','TypeError','NaN']},
+      {question: 'Which HTTP method is used to request data from a server?', correct: 'GET', incorrect: ['POST','PUT','DELETE']},
+      {question: 'The box model in CSS consists of which areas?', correct: 'Content, padding, border, margin', incorrect: ['Content, size, margin','Height, width, padding','Margin, border, transform']},
+      {question: 'Which HTML attribute specifies an alternate text for an image?', correct: 'alt', incorrect: ['title','src','caption']},
+      {question: 'Which method adds an element to the end of an array in JavaScript?', correct: 'push()', incorrect: ['pop()','shift()','unshift()']}
+    ];
+
+    // ---------- utilities ----------
+    function decodeHTMLEntities(text){
+      const txt = document.createElement('textarea');
+      txt.innerHTML = text;
+      return txt.value;
+    }
+
+    function shuffle(array){
+      for(let i = array.length -1; i>0; i--){
+        const j = Math.floor(Math.random()*(i+1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+      return array;
+    }
+
+    // normalize API results (or fallback) to a format {question,options:[],correct}
+    function normalizeQuestion(raw){
+      const q = decodeHTMLEntities(raw.question);
+      const correct = decodeHTMLEntities(raw.correct_answer || raw.correct);
+      const incorrect = (raw.incorrect_answers || raw.incorrect || []).map(decodeHTMLEntities);
+      const options = shuffle([correct, ...incorrect]);
+      return {question: q, options, correct};
+    }
+
+    async function fetchQuestions(amount=10, difficulty=''){
+      if(!useApiEl.checked) return null;
+      try{
+        const params = new URLSearchParams({amount: amount.toString(), type: 'multiple'});
+        if(difficulty) params.set('difficulty', difficulty);
+        const url = OPEN_TRIVIA_API + '?' + params.toString();
+        const res = await fetch(url);
+        if(!res.ok) throw new Error('Network error');
+        const data = await res.json();
+        if(data.response_code !== 0) throw new Error('API returned no results');
+        return data.results.map(normalizeQuestion);
+      }catch(err){
+        console.warn('API fetch failed:', err);
+        return null;
+      }
+    }
+
+    // ---------- quiz flow ----------
+    async function startQuiz(){
+      // read settings
+      const n = Math.max(1, Math.min(50, parseInt(numQuestionsEl.value || '10')));
+      const diff = difficultyEl.value;
+      timePerQuestion = Math.max(5, Math.min(120, parseInt(timePerQEl.value || '20')));
+      score = 0; current = 0;
+      updateScore();
+      endScreen.classList.remove('show');
+      questionCard.style.display = '';
+
+      // load questions
+      const fromApi = await fetchQuestions(n, diff);
+      if(fromApi && fromApi.length>=1){
+        questions = fromApi.slice(0,n);
+      }else{
+        // fallback: sample local questions (randomize & pick n)
+        const chosen = shuffle([...FALLBACK_QUESTIONS]).slice(0,n);
+        questions = chosen.map(q=>normalizeQuestion({question:q.question, correct:q.correct, incorrect:q.incorrect}));
+      }
+
+      // prepare UI
+      document.getElementById('debugInfo').textContent = (useApiEl.checked? 'Source: Open Trivia DB': 'Source: Local fallback');
+      updateHighscoreUI();
+      showQuestion();
+    }
+
+    function showQuestion(){
+      clearInterval(timerInterval);
+      feedbackEl.textContent = '';
+      const total = questions.length;
+      if(current < 0) current = 0;
+      if(current >= total){
+        return endQuiz();
+      }
+      const q = questions[current];
+      qIndexEl.textContent = `Question ${current+1} / ${total}`;
+      questionTextEl.innerHTML = q.question;
+
+      // build options
+      optionsEl.innerHTML = '';
+      q.options.forEach((opt, idx)=>{
+        const btn = document.createElement('button');
+        btn.className = 'option';
+        btn.setAttribute('role','button');
+        btn.setAttribute('data-value',opt);
+        btn.setAttribute('aria-disabled','false');
+        btn.innerHTML = `<div style=\"font-weight:600\">${String.fromCharCode(65+idx)}.</div><div style=\"margin-top:6px\">${opt}</div>`;
+        btn.addEventListener('click', ()=>handleAnswer(btn, opt));
+        optionsEl.appendChild(btn);
+      });
+
+      // progress bar
+      const pct = Math.round((current/total)*100);
+      progressBar.style.width = pct + '%';
+
+      // start timer
+      timeLeft = timePerQuestion;
+      updateTimerUI();
+      timerInterval = setInterval(()=>{
+        timeLeft -= 1;
+        if(timeLeft <= 0){
+          clearInterval(timerInterval);
+          // mark as timed out
+          markTimeout();
+        }
+        updateTimerUI();
+      }, 1000);
+    }
+
+    function updateTimerUI(){
+      timerEl.textContent = timeLeft + 's';
+    }
+
+    function updateScore(){
+      scoreEl.textContent = `Score: ${score}`;
+    }
+
+    function markTimeout(){
+      feedbackEl.textContent = 'Time up! The correct answer is highlighted.';
+      revealCorrect();
+      setTimeout(()=>{
+        current += 1; showQuestion();
+      }, 1200);
+    }
+
+    function handleAnswer(btn, selected){
+      // prevent double-click
+      if(btn.getAttribute('aria-disabled') === 'true') return;
+      clearInterval(timerInterval);
+      // disable all options
+      const optionButtons = Array.from(optionsEl.querySelectorAll('.option'));
+      optionButtons.forEach(b=>b.setAttribute('aria-disabled','true'));
+
+      const q = questions[current];
+      if(selected === q.correct){
+        btn.classList.add('correct');
+        feedbackEl.textContent = 'Correct! +1 point.';
+        score += 1;
+        updateScore();
+      }else{
+        btn.classList.add('wrong');
+        feedbackEl.textContent = 'Wrong — the correct answer is highlighted.';
+        // highlight correct one
+        optionButtons.forEach(b=>{
+          if(b.getAttribute('data-value') === q.correct) b.classList.add('correct');
+        });
+      }
+      // short delay then next
+      setTimeout(()=>{
+        current += 1; showQuestion();
+      }, 1100);
+    }
+
+    function revealCorrect(){
+      const optionButtons = Array.from(optionsEl.querySelectorAll('.option'));
+      optionButtons.forEach(b=>{
+        if(b.getAttribute('data-value') === questions[current].correct) b.classList.add('correct');
+        b.setAttribute('aria-disabled','true');
+      });
+    }
+
+    function endQuiz(){
+      clearInterval(timerInterval);
+      questionCard.style.display = 'none';
+      endScreen.classList.add('show');
+      finalScoreEl.textContent = `${score} / ${questions.length}`;
+      // save high score
+      saveHighscore(score);
+      updateHighscoreUI();
+    }
+
+    // ---------- review ----------
+    function showReview(){
+      reviewArea.innerHTML = '';
+      questions.forEach((q, idx)=>{
+        const wrap = document.createElement('div');
+        wrap.style.padding = '10px';
+        wrap.style.borderTop = '1px solid rgba(255,255,255,0.03)';
+        wrap.innerHTML = `<div style=\"font-weight:600\">Q${idx+1}. ${q.question}</div>`;
+        const ul = document.createElement('ul');
+        q.options.forEach(opt=>{
+          const li = document.createElement('li');
+          li.style.marginTop = '6px';
+          li.textContent = opt + (opt === q.correct ? ' ✅' : '');
+          ul.appendChild(li);
+        });
+        wrap.appendChild(ul);
+        reviewArea.appendChild(wrap);
+      });
+    }
+
+    // ---------- high score storage ----------
+    const HKEY = 'online_quiz_highscore_v1';
+    function saveHighscore(sc){
+      const prev = parseInt(localStorage.getItem(HKEY) || '0');
+      if(sc > prev) localStorage.setItem(HKEY, sc.toString());
+    }
+    function updateHighscoreUI(){
+      const val = localStorage.getItem(HKEY);
+      highscoreEl.textContent = `High score: ${val ? val : '—'}`;
+    }
+    resetHighBtn.addEventListener('click', ()=>{ localStorage.removeItem(HKEY); updateHighscoreUI(); alert('High score reset'); });
+
+    // ---------- navigation controls ----------
+    prevBtn.addEventListener('click', ()=>{
+      if(current>0){ current -=1; showQuestion(); }
+    });
+    nextBtn.addEventListener('click', ()=>{
+      current +=1; showQuestion();
+    });
+
+    retryBtn.addEventListener('click', ()=>{ endScreen.classList.remove('show'); startQuiz(); });
+    reviewBtn.addEventListener('click', ()=>{ showReview(); });
+
+    startBtn.addEventListener('click', startQuiz);
+
+    // keyboard shortcuts
+    document.addEventListener('keydown', (e)=>{
+      if(endScreen.classList.contains('show')) return; // ignore when ended
+      const key = e.key;
+      if(['1','2','3','4'].includes(key)){
+        const idx = parseInt(key)-1;
+        const btn = optionsEl.children[idx];
+        if(btn) btn.click();
+      }
+      if(key === 'Enter' || key === ' '){
+        // move next if options disabled or no active question
+        const anyOption = optionsEl.querySelector('.option');
+        if(anyOption && anyOption.getAttribute('aria-disabled') === 'true'){
+          current +=1; showQuestion();
+        }
+      }
+    });
+
+    // show initial highscore
+    updateHighscoreUI();
+
+    // warn user about local file+fetch CORS: recommend running a local server if fetch fails
+    (function checkLocalfileFetch(){
+      try{
+        if(location.protocol === 'file:'){
+          document.getElementById('debugInfo').textContent = 'Note: You opened file via file:// — API fetches might be blocked; run a local server if API fails.';
+        }
+      }catch(e){/*ignore*/}
+    })();
+
+  </script>
+</body>
+</html>
